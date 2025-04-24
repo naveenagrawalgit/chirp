@@ -1,0 +1,38 @@
+import jwt from "jsonwebtoken"
+
+import User from "../models/user.model.js"
+
+export const protectRoute = async (req,res,next)=>{
+
+    try {
+        // here name for cookies is jwt because we gave it during creation
+        const token= req.cookies.jwt
+
+            console.log(token,"token value")
+
+        if(!token){
+            return res.status(401).json({message: "Unauthorized - No Token Provided"});
+        }
+            const decoded = jwt.verify(token,process.env.JWT_SECRET)
+
+            if(!decoded){
+                return res.status(401).json({message: "Uanuthorized - Invaid Token"});
+            }
+            const user =await User.findById(decoded.userId).select("-password");
+
+            if(!user){
+               return res.status(404).json({message: "User not found"})
+            }
+            // forwarding details of user if middleware gets called and we have removed password from the user object we got from the database
+            req.user = user
+
+            next();
+
+        
+    } catch (error) {
+
+        console.log("Internal server error inside prtect route",error)
+        return res.status(500).json({message: "Internal server error"})
+        
+    }
+}
