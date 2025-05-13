@@ -1,5 +1,7 @@
 import User from "../models/user.model.js";
 import { Message } from "../models/message.model.js";
+import cloudinary from "../lib/cloudinary.js";
+import { getReceiverSocketId, io } from "../lib/socket.js";
 
 
 export const getUsersForSidebar = async(req,res) => {
@@ -8,7 +10,7 @@ export const getUsersForSidebar = async(req,res) => {
         // end point for getting info for sidebar users
         const loggedInUserId = req.user._id; // we can access the user id here because of middleware which we have attached to message route(prtect route).
 
-        const filteredUsers = await User.find({id:{$ne: loggedInUserId } }).select("-password"); // getting all users leaving the currentloggedin User.
+        const filteredUsers = await User.find({_id:{$ne: loggedInUserId } }).select("-password"); // getting all users leaving the currentloggedin User.
 
         res.status(200).json(filteredUsers);
 
@@ -39,8 +41,8 @@ export const getMessage= async(req,res)=>{
     
         const messages = await Message.find({
             $or:[
-                { senderId: myId, recieverId: userToChatId },
-                { senderId: userToChatId, recieverId: myId }
+                { senderId: myId, receiverId: userToChatId },
+                { senderId: userToChatId, receiverId: myId }
             ]
         })
 
@@ -62,9 +64,13 @@ export const sendMessage = async (req,res) => {
     
         let imageUrl;
     
+    
         if(image){
+            
             const uploadResponse = await cloudinary.uploader.upload(image);
             imageUrl = uploadResponse.secure_url
+
+            console.log( "value inside image url",imageUrl)
         }
     
         const newMessage = new Message({
@@ -73,11 +79,18 @@ export const sendMessage = async (req,res) => {
             text,
             image: imageUrl,
         })
+
+        console.log("value inside newMessage", newMessage)
+
     
         await newMessage.save();
+        
     
-        // todo: realtime text functionality
-    
+        //  realtime text functionality
+        const receiverSocketId = getReceiverSocketId(receiverId)
+        if(receiverSocketId){
+            io.to(receiverSocketId).emit("newMessage", newMessage)
+        }
         res.status(201).json(newMessage)
     
     } catch (error) {
